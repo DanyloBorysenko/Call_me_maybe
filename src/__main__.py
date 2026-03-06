@@ -19,9 +19,9 @@ def main() -> None:
         print(e.errors()[0]["msg"].removeprefix("Value error, "))
     try:
         functions = parser.load_functions()
+        print(functions)
     except ParserError as e:
         print(e)
-
 
 if __name__ == "__main__":
     main()
