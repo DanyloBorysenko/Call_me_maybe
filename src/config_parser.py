@@ -1,5 +1,5 @@
-from pydantic import BaseModel, model_validator, Field
-from typing import Dict, List
+from pydantic import BaseModel, model_validator, field_validator, Field
+from typing import Dict, List, Self
 import json
 from pydantic import ValidationError
 
@@ -22,14 +22,17 @@ class Function(BaseModel):
     parameters: Dict[str, Parameter]
     returns: Return
 
-    # @model_validator(mode="after")
-    # def check_params(self) -> Self:
-    #     if len(self.parameters.keys()) == 0:
-    #         raise ValueError("At least one parameter is required")
-    #     for param_name in self.parameters.keys():
-    #         if param_name == "":
-    #             raise ValueError("parameter's name can not be empty")
-    #     return self
+    @field_validator("parameters")
+    def check_params(cls,
+                     params: Dict[str, Parameter]) -> Dict[str, Parameter]:
+        for param_name in params:
+            if param_name.strip() == "":
+                raise ValueError("parameter's name can not be empty")
+        return params
+
+
+class Prompt(BaseModel):
+    prompt: str = Field(min_length=1)
 
 
 class ConfigParser(BaseModel):
@@ -56,16 +59,39 @@ class ConfigParser(BaseModel):
         if not isinstance(data, list):
             raise ParserError("Functions definition must be a list")
         for item in data:
-            if not isinstance(item, Dict):
+            if not isinstance(item, dict):
                 raise ParserError("Each function definition must be an object")
         try:
-            functions = [Function(**item) for item in data]
-            return functions
+            return [Function(**item) for item in data]
         except ValidationError as e:
-            err = e.errors()[0]
-            field = ".".join(map(str, err["loc"]))
-            msg = err["msg"]
-            raise ParserError(f"Invalid function definition: '{field}' "
-                              f"→ {msg}")
+            raise_parser_error(e)
         except Exception as e:
             raise ParserError(f"{e}")
+
+    def load_prompts(self) -> List[Prompt]:
+        try:
+            with open(self.input, "r") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            raise ParserError(f"File {self.input} not found")
+        except json.JSONDecodeError:
+            raise ParserError("Invalid JSON format in prompts definition")
+        if not isinstance(data, list):
+            raise ParserError("Prompt definition must be a list")
+        for item in data:
+            if not isinstance(item, dict):
+                raise ParserError("Each prompt definition must be an object")
+        try:
+            return [Prompt(**item) for item in data]
+        except ValidationError as e:
+            raise_parser_error(e)
+        except Exception as e:
+            raise ParserError(f"{e}")
+
+
+def raise_parser_error(error: ValidationError) -> None:
+    err = error.errors()[0]
+    field = ".".join(map(str, err["loc"]))
+    msg = err["msg"].removeprefix("Value error, ")
+    raise ParserError(f"Invalid function definition: '{field}' "
+                      f"→ {msg}")
