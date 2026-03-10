@@ -67,6 +67,7 @@ class ConfigParser(BaseModel):
             raise_parser_error(e)
         except Exception as e:
             raise ParserError(f"{e}")
+        return []
 
     def load_prompts(self) -> List[Prompt]:
         try:
@@ -87,6 +88,7 @@ class ConfigParser(BaseModel):
             raise_parser_error(e)
         except Exception as e:
             raise ParserError(f"{e}")
+        return []
 
 
 def raise_parser_error(error: ValidationError) -> None:

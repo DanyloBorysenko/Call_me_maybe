@@ -6,10 +6,10 @@ DEBUGGER = pdb
 install:
 	$(UV) sync
 
-run:
+run: install
 	$(UV) run $(PYTHON) -m $(SRC)
 
-debug:
+debug: install
 	$(UV) run -m $(DEBUGGER) -m $(SRC)
 
 clean:
@@ -18,7 +18,9 @@ clean:
 
 lint:
 	flake8 . --exclude=llm_sdk,.venv
-	mypy . --warn-return-any --warn-unused-ignores \
+	mypy . --exclude=llm_sdk --warn-return-any --warn-unused-ignores \
 			--ignore-missing-imports --disallow-untyped-defs \
 			--check-untyped-defs
+
+.PHONY install run debug clean lint
 	
