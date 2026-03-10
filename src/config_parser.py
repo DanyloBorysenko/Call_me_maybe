@@ -1,5 +1,5 @@
 from pydantic import BaseModel, model_validator, field_validator, Field
-from typing import Dict, List, Self
+from typing import Dict, List
 import json
 from pydantic import ValidationError
 

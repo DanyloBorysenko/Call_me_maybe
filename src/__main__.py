@@ -1,6 +1,6 @@
 import sys
 from .arg_validator import ArgValidator
-from .config_parser import ConfigParser, ParserError, Function
+from .config_parser import ConfigParser, ParserError
 from pydantic import ValidationError
 
 
