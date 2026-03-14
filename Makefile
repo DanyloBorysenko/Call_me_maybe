@@ -22,5 +22,4 @@ lint:
 			--ignore-missing-imports --disallow-untyped-defs \
 			--check-untyped-defs
 
-.PHONY install run debug clean lint
-	
+.PHONY: install run debug clean lint

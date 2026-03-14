@@ -37,6 +37,7 @@ class Small_LLM_Model:
         trust_remote_code: bool = True,
     ) -> None:
         self._model_name = model_name
+        hf_token = os.getenv("HF_TOKEN")
 
         # Auto-select device with priority: mps > cuda > cpu
         if device is None:
@@ -52,9 +53,10 @@ class Small_LLM_Model:
             dtype = torch.float16 if self._device in ["cuda", "mps"] else torch.float32
         self._dtype = dtype
 
-        # --- load tokenizer & model -------------------------------------------------
+        # --- load tokenizer & model -----------------------------------------
         self._tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(
-            model_name, trust_remote_code=trust_remote_code
+            model_name, trust_remote_code=trust_remote_code,
+            token=hf_token
         )
         if self._tokenizer.pad_token_id is None:
             # ensure we have a pad token to keep batch helpers happy
@@ -65,6 +67,7 @@ class Small_LLM_Model:
             torch_dtype=self._dtype,
             device_map="auto" if self._device == "cuda" else None,
             trust_remote_code=trust_remote_code,
+            token=hf_token
         )
         self._model.to(self._device)
         self._model.eval()
