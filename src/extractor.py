@@ -85,7 +85,8 @@ def get_parameters(
     str_ids = vocab["str_ids"]
 
     parameters: Dict[str, Any] = {}
-
+    # if you want a literal '{' or '}' character in the output,
+    # you must double it
     prefix_str = (
         f'Available functions:\n{function.name}: {function.description}\n'
         f'\nUser prompt: {prompt}\n'

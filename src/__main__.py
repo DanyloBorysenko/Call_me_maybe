@@ -116,7 +116,11 @@ def main() -> None:
     jsons = []
     vocab = build_vocab_index(model)
     for prompt in prompts:
-        function = get_function_name(model, prompt.prompt, functions)
+        try:
+            function = get_function_name(model, prompt.prompt, functions)
+        except RuntimeError as e:
+            print(e)
+            exit(1)
         result = "{"
         result += f'"prompt": "{prompt.prompt}", "name": "{function.name}", '
         result += '"parameters": '
