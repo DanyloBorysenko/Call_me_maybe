@@ -20,7 +20,9 @@ def get_function_name(model: Small_LLM_Model,
     prefix += f'"prompt": "{prompt}", "name": "'
     generated_tokens = []
     prefix_input_ids = model.encode(prefix).tolist()[0]
-    while True:
+    max_tokens_length = len(max(funct_name_tokens.values(),
+                            key=lambda tokens: len(tokens)))
+    for _ in range(max_tokens_length):
         allowed = set()
         for name, tokens in funct_name_tokens.items():
             generated_len = len(generated_tokens)
@@ -30,20 +32,18 @@ def get_function_name(model: Small_LLM_Model,
         if not allowed:
             raise RuntimeError("No valid tokens available")
         logits = model.get_logits_from_input_ids(prefix_input_ids)
-        logits_len = len(logits)
-        for i in range(logits_len):
-            if i not in allowed:
-                logits[i] = -float("inf")
-        next_token = max(range(logits_len), key=lambda i: logits[i])
+        next_token = max(allowed, key=lambda i: logits[i])
         generated_tokens.append(next_token)
         prefix_input_ids.append(next_token)
         for name, tokens in funct_name_tokens.items():
             if tokens == generated_tokens:
                 return name_func_dict[name]
+    raise RuntimeError("No function name found within token limit")
 
 
 def _masked_argmax(logits: List[float], allowed_ids: np.ndarray) -> int:
-    """Mask all tokens except allowed_ids and return the highest-logit token id."""
+    """Mask all tokens except allowed_ids and
+    return the highest-logit token id."""
     arr = np.array(logits, dtype=np.float32)
     mask = np.full(len(arr), -np.inf, dtype=np.float32)
     mask[allowed_ids] = arr[allowed_ids]
@@ -111,12 +111,7 @@ def get_parameters(
         input_ids.extend(model.encode(key_str).tolist()[0])
 
         val_ids: List[int] = []
-        iteration = 0
-
         while True:
-            iteration += 1
-            if iteration % 10 == 0:
-                so_far = model.decode(val_ids) if val_ids else ""
 
             logits = model.get_logits_from_input_ids(input_ids)
 

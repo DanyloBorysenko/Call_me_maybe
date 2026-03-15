@@ -1,7 +1,7 @@
 import sys
 from .arg_validator import ArgValidator
 from .config_parser import ConfigParser, ParserError
-from .json_creator import get_function_name, get_parameters
+from .extractor import get_function_name, get_parameters
 from pydantic import ValidationError
 from typing import Dict
 from llm_sdk import Small_LLM_Model
@@ -22,6 +22,7 @@ def build_vocab_index(model) -> Dict:
     all_tokens: Dict[int, str] = {
         i: model.decode([i]) for i in range(vocab_size)
     }
+    # print(str(vocab_json)[:200])
 
     def _find_exact_token(target: str) -> int:
         matches = [i for i, s in all_tokens.items() if s == target]
@@ -30,17 +31,31 @@ def build_vocab_index(model) -> Dict:
         return matches[0]
 
     def _is_numeric_token(s: str) -> bool:
+        # The + sign was intentionally left out
+        # because in the context of JSON number values, '+' is not valid.
         return len(s) > 0 and all(c in "0123456789.-" for c in s)
 
+    _numeric_base = [i for i, s in all_tokens.items() if _is_numeric_token(s)]
+    numeric_base_ids = np.array(_numeric_base, dtype=np.int64)
+
+    # The purpose of this section is to find the token IDs for
+    # JSON structural terminators — characters that signal
+    # "this value is finished, move to the next one"
     quote_id = _find_exact_token('"')
     comma_id = _find_exact_token(',')
     rbrace_id = _find_exact_token('}')
 
-    # ── Fix 1: separate base (no terminators) from full (with terminators)
-    _numeric_base = [i for i, s in all_tokens.items() if _is_numeric_token(s)]
-    numeric_base_ids = np.array(_numeric_base, dtype=np.int64)
     numeric_ids = np.array(_numeric_base + [comma_id, rbrace_id], dtype=np.int64)
 
+    # "true" or "false" might not be a single token — the tokenizer can split
+    # it into multiple pieces.
+    # "true".startswith(s.lower()) handles all split cases:
+    # python"true".startswith("t")    # True  ✅ allowed
+    # "true".startswith("tr")         # True  ✅ allowed
+    # "true".startswith("tru")        # True  ✅ allowed
+    # "true".startswith("true")       # True  ✅ allowed
+    # "true".startswith("ue")         # False ❌ blocked
+    # "true".startswith("hello")      # False ❌ blocked
     bool_ids = np.array(
         [
             i for i, s in all_tokens.items()
@@ -49,16 +64,20 @@ def build_vocab_index(model) -> Dict:
         dtype=np.int64
     )
 
-    # ── Fix 3: exclude structurally dangerous characters from strings
-    _UNSAFE_CHARS = {'{', '}', '[', ']', '\n', '\r', '\t'}
-    str_ids = np.array(
-        [
-            i for i, s in all_tokens.items()
-            if not any(c in _UNSAFE_CHARS for c in s)
-            and not ('"' in s and len(s) > 1)  # exclude multi-char tokens containing quote
-        ],
-        dtype=np.int64
-    )
+    # exclude structurally dangerous characters from strings
+    _unsafe_chars = {'{', '}', '[', ']', '\n', '\r', '\t'}
+    ids = []
+    for id, token in all_tokens.items():
+        if not token:
+            continue
+        if token == '"':
+            ids.append(id)
+        elif '"' in token:
+            continue
+        else:
+            if not any(c in _unsafe_chars for c in token):
+                ids.append(id)
+    str_ids = np.array(ids, dtype=np.int64)
 
     return {
         "all_tokens":       all_tokens,
