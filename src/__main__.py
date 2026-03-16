@@ -44,6 +44,7 @@ def build_vocab_index(model) -> Dict:
     quote_id = _find_exact_token('"')
     comma_id = _find_exact_token(',')
     rbrace_id = _find_exact_token('}')
+    negative_sign = _find_exact_token('-')
 
     numeric_ids = np.array(_numeric_base + [comma_id, rbrace_id], dtype=np.int64)
 
@@ -86,9 +87,10 @@ def build_vocab_index(model) -> Dict:
         "comma_id":         comma_id,
         "rbrace_id":        rbrace_id,
         "numeric_base_ids": numeric_base_ids,   # digits only
-        "numeric_ids":      numeric_ids,         # digits + terminators
+        "numeric_ids":      numeric_ids,        # digits + terminators
         "bool_ids":         bool_ids,
         "str_ids":          str_ids,
+        "negative_sign":    negative_sign
     }
 
 

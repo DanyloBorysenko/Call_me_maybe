@@ -83,6 +83,7 @@ def get_parameters(
     numeric_base_ids = vocab["numeric_base_ids"]
     bool_ids = vocab["bool_ids"]
     str_ids = vocab["str_ids"]
+    negative_sign = vocab["negative_sign"]
 
     parameters: Dict[str, Any] = {}
     # if you want a literal '{' or '}' character in the output,
@@ -113,14 +114,16 @@ def get_parameters(
 
         val_ids: List[int] = []
         while True:
-
+            val_ids_len = len(val_ids)
             logits = model.get_logits_from_input_ids(input_ids)
 
             # ---------- numeric ----------
             if ptype in ("int", "float", "number"):
-                if len(val_ids) >= max_num_tokens:
+                if val_ids_len >= max_num_tokens:
                     break
-                if len(val_ids) == 0:
+                if val_ids_len == 0:
+                    # allowed_ids = np.union1d(numeric_base_ids,
+                    #                          np.array([negative_sign]))
                     allowed_ids = numeric_base_ids
                 else:
                     allowed_ids = numeric_ids
@@ -132,35 +135,43 @@ def get_parameters(
                 decoded_so_far = decoded_so_far.lower().strip()
 
                 if decoded_so_far in ("true", "false"):
-                    allowed_ids = np.array([comma_id, rbrace_id], dtype=np.int64)
+                    allowed_ids = np.array([comma_id, rbrace_id],
+                                           dtype=np.int64)
                 else:
                     allowed_ids = bool_ids
 
             # ---------- string ----------
             else:
-                if len(val_ids) >= max_str_tokens:
+                if val_ids_len >= max_str_tokens:
                     allowed_ids = np.array([quote_id], dtype=np.int64)
-                elif name == "regex":
-                    prompt_based = np.intersect1d(str_ids, prompt_token_ids)
-                    allowed_ids = np.union1d(
-                        prompt_based,
-                        np.array([quote_id], dtype=np.int64)
-                    )
+                # elif name == "regex":
+                #     prompt_based = np.intersect1d(str_ids, prompt_token_ids)
+                #     allowed_ids = np.union1d(
+                #         prompt_based,
+                #         np.array([quote_id], dtype=np.int64)
+                #     )
                 else:
                     allowed_ids = str_ids
             next_token = _masked_argmax(logits, allowed_ids)
             t_str = all_tokens[next_token]
 
-            # Repetition guard — stop if any 3-token pattern repeats back-to-back
+            # Repetition guard — stop if any token pattern repeats back-to-back
+            stop = False
             if ptype not in ("int", "float", "number", "bool") and len(val_ids) >= 6:
-                if val_ids[-3:] == val_ids[-6:-3]:
+                for window in (2, 3, 4, 5, 6):
+                    if val_ids_len >= window * 2:
+                        if val_ids[-window:] == val_ids[-window*2:-window]:
+                            val_ids = val_ids[:-window]
+                            stop = True
+                            break
+                if stop is True:
                     break
 
             # ---------- termination ----------
             is_done = (
-                (ptype == "string" and t_str == '"') or
-                (ptype in ("int", "float", "number") and t_str in (",", "}")) or
-                (ptype == "bool" and t_str in (",", "}"))
+                (ptype == "string" and t_str == '"')
+                or (ptype in ("int", "float", "number") and t_str in (",", "}"))
+                or (ptype == "bool" and t_str in (",", "}"))
             )
 
             if is_done:
@@ -169,11 +180,13 @@ def get_parameters(
             val_ids.append(next_token)
             input_ids.append(next_token)
             # safety guard for runaway string generation
-            if ptype == "string" and len(val_ids) >= max_str_tokens:
+            if ptype == "string" and val_ids_len >= max_str_tokens:
                 print("    forced break at max_str_tokens", flush=True)
                 break
 
         raw_val = model.decode(val_ids).strip()
+        if name == "regex" and ".*" in raw_val:
+            raw_val = raw_val.split(".*")[0]
         parameters[name] = clean_and_cast(raw_val, ptype)
 
         # ---------- append separators ----------
