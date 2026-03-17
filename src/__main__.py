@@ -50,15 +50,6 @@ def build_vocab_index(model) -> Dict:
     numeric_ids = np.array(_numeric_base + [comma_id, rbrace_id],
                            dtype=np.int64)
 
-    # "true" or "false" might not be a single token — the tokenizer can split
-    # it into multiple pieces.
-    # "true".startswith(s.lower()) handles all split cases:
-    # python"true".startswith("t")    # True  ✅ allowed
-    # "true".startswith("tr")         # True  ✅ allowed
-    # "true".startswith("tru")        # True  ✅ allowed
-    # "true".startswith("true")       # True  ✅ allowed
-    # "true".startswith("ue")         # False ❌ blocked
-    # "true".startswith("hello")      # False ❌ blocked
     bool_ids = np.array(
         [
             i for i, s in all_tokens.items()
@@ -134,8 +125,8 @@ def main() -> None:
             "parameters": parameters
             }
         jsons.append(result)
-        output = json.dumps(jsons, indent=2)
-        print(output)
+    output = json.dumps(jsons, indent=2)
+    print(output)
 
 
 if __name__ == "__main__":

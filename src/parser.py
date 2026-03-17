@@ -93,18 +93,6 @@ class ConfigParser(BaseModel):
             raise ParserError(f"{e}")
         return []
 
-    @staticmethod
-    def create_json(prompt: Prompt,
-                    function: Function,
-                    parameters: Dict[str, Any]) -> str:
-        result = "{\n  "
-        result += f'"prompt": "{prompt.prompt}",\n  '
-        result += f'"name": "{function.name}",\n  '
-        result += '"parameters": '
-        result += f"{json.dumps(parameters)}\n"
-        result += "}"
-        return result
-
 
 def raise_parser_error(error: ValidationError) -> None:
     err = error.errors()[0]
