@@ -1,6 +1,6 @@
 import sys
 from .arg_validator import ArgValidator
-from .config_parser import ConfigParser, ParserError
+from .parser import ConfigParser, ParserError
 from .extractor import get_function_name, get_parameters
 from pydantic import ValidationError
 from typing import Dict
@@ -68,7 +68,7 @@ def build_vocab_index(model) -> Dict:
     )
 
     # exclude structurally dangerous characters from strings
-    _unsafe_chars = {'{', '}', '[', ']', '\n', '\r', '\t'}
+    _unsafe_chars = {'{', '}', '\n', '\r', '\t'}
     ids = []
     for id, token in all_tokens.items():
         if not token:
@@ -125,15 +125,17 @@ def main() -> None:
         except RuntimeError as e:
             print(e)
             exit()
-        result = "{"
-        result += f'"prompt": "{prompt.prompt}", "name": "{function.name}", '
-        result += '"parameters": '
-        params = get_parameters(model, function, prompt.prompt, vocab)
-        result += f"{json.dumps(params)}"
-        result += "}"
+        parameters = get_parameters(model, function, prompt.prompt, vocab)
+        # res = ConfigParser.create_json(prompt, function, parameters)
+        # print(res)
+        result = {
+            "prompt": prompt.prompt,
+            "name": function.name,
+            "parameters": parameters
+            }
         jsons.append(result)
-        output = "[\n" + ",\n".join(jsons) + "\n]"
-    print(output)
+        output = json.dumps(jsons, indent=2)
+        print(output)
 
 
 if __name__ == "__main__":

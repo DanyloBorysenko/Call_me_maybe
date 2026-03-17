@@ -1,4 +1,4 @@
-from .config_parser import Function
+from .parser import Function
 from typing import List, Dict, Any
 from llm_sdk import Small_LLM_Model
 import numpy as np
@@ -93,7 +93,7 @@ def get_parameters(
     input_ids: List[int] = model.encode(prefix_str).tolist()[0]
     param_items = list(function.parameters.items())
 
-    # prompt_token_ids = np.array(model.encode(prompt).tolist()[0])
+    prompt_token_ids = np.array(model.encode(prompt).tolist()[0])
 
     for idx, (name, param) in enumerate(param_items):
 

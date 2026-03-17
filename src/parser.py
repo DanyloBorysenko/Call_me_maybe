@@ -1,5 +1,5 @@
 from pydantic import BaseModel, model_validator, field_validator, Field
-from typing import Dict, List
+from typing import Dict, List, Any
 import json
 from pydantic import ValidationError
 
@@ -92,6 +92,18 @@ class ConfigParser(BaseModel):
         except Exception as e:
             raise ParserError(f"{e}")
         return []
+
+    @staticmethod
+    def create_json(prompt: Prompt,
+                    function: Function,
+                    parameters: Dict[str, Any]) -> str:
+        result = "{\n  "
+        result += f'"prompt": "{prompt.prompt}",\n  '
+        result += f'"name": "{function.name}",\n  '
+        result += '"parameters": '
+        result += f"{json.dumps(parameters)}\n"
+        result += "}"
+        return result
 
 
 def raise_parser_error(error: ValidationError) -> None:
