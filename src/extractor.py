@@ -61,9 +61,7 @@ def clean_and_cast(raw: str, param_type: str) -> Any:
                 return int(cleaned) if "." not in cleaned else float(cleaned)
             except ValueError:
                 return None
-    if param_type == "bool":
-        return raw.lower() == "true"
-    return raw  # str
+    return raw
 
 
 def get_parameters(
@@ -77,13 +75,9 @@ def get_parameters(
 
     all_tokens = vocab["all_tokens"]
     quote_id = vocab["quote_id"]
-    comma_id = vocab["comma_id"]
-    rbrace_id = vocab["rbrace_id"]
     numeric_ids = vocab["numeric_ids"]
     numeric_base_ids = vocab["numeric_base_ids"]
-    bool_ids = vocab["bool_ids"]
     str_ids = vocab["str_ids"]
-    negative_sign = vocab["negative_sign"]
 
     parameters: Dict[str, Any] = {}
     # if you want a literal '{' or '}' character in the output,
@@ -99,7 +93,7 @@ def get_parameters(
     input_ids: List[int] = model.encode(prefix_str).tolist()[0]
     param_items = list(function.parameters.items())
 
-    prompt_token_ids = np.array(model.encode(prompt).tolist()[0])
+    # prompt_token_ids = np.array(model.encode(prompt).tolist()[0])
 
     for idx, (name, param) in enumerate(param_items):
 
@@ -122,23 +116,9 @@ def get_parameters(
                 if val_ids_len >= max_num_tokens:
                     break
                 if val_ids_len == 0:
-                    # allowed_ids = np.union1d(numeric_base_ids,
-                    #                          np.array([negative_sign]))
                     allowed_ids = numeric_base_ids
                 else:
                     allowed_ids = numeric_ids
-
-            # ---------- boolean ----------
-            elif ptype == "bool":
-
-                decoded_so_far = model.decode(val_ids) if val_ids else ""
-                decoded_so_far = decoded_so_far.lower().strip()
-
-                if decoded_so_far in ("true", "false"):
-                    allowed_ids = np.array([comma_id, rbrace_id],
-                                           dtype=np.int64)
-                else:
-                    allowed_ids = bool_ids
 
             # ---------- string ----------
             else:
@@ -152,12 +132,13 @@ def get_parameters(
                 #     )
                 else:
                     allowed_ids = str_ids
+
             next_token = _masked_argmax(logits, allowed_ids)
             t_str = all_tokens[next_token]
 
             # Repetition guard — stop if any token pattern repeats back-to-back
             stop = False
-            if ptype not in ("int", "float", "number", "bool") and len(val_ids) >= 6:
+            if ptype == "string" and val_ids_len >= 6:
                 for window in (2, 3, 4, 5, 6):
                     if val_ids_len >= window * 2:
                         if val_ids[-window:] == val_ids[-window*2:-window]:
@@ -170,8 +151,8 @@ def get_parameters(
             # ---------- termination ----------
             is_done = (
                 (ptype == "string" and t_str == '"')
-                or (ptype in ("int", "float", "number") and t_str in (",", "}"))
-                or (ptype == "bool" and t_str in (",", "}"))
+                or (ptype in ("int", "float", "number")
+                    and t_str in (",", "}"))
             )
 
             if is_done:
@@ -179,10 +160,6 @@ def get_parameters(
 
             val_ids.append(next_token)
             input_ids.append(next_token)
-            # safety guard for runaway string generation
-            if ptype == "string" and val_ids_len >= max_str_tokens:
-                print("    forced break at max_str_tokens", flush=True)
-                break
 
         raw_val = model.decode(val_ids).strip()
         if name == "regex" and ".*" in raw_val:

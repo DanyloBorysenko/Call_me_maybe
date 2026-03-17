@@ -62,7 +62,10 @@ class ConfigParser(BaseModel):
             if not isinstance(item, dict):
                 raise ParserError("Each function definition must be an object")
         try:
-            return [Function(**item) for item in data]
+            functions = [Function(**item) for item in data]
+            if len(functions) != len(set(func.name for func in functions)):
+                raise ParserError("Functions can not have duplacate name")
+            return functions
         except ValidationError as e:
             raise_parser_error(e)
         except Exception as e:

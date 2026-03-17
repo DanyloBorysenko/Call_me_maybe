@@ -16,7 +16,8 @@ def build_vocab_index(model) -> Dict:
             vocab_json = json.load(f)
         vocab_size = len(vocab_json)
     except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Warning: could not read vocab file: {e}, using fallback vocab size")
+        print(f"Warning: could not read vocab file: {e}, "
+              f"using fallback vocab size")
         vocab_size = 151936
 
     all_tokens: Dict[int, str] = {
@@ -46,7 +47,8 @@ def build_vocab_index(model) -> Dict:
     rbrace_id = _find_exact_token('}')
     negative_sign = _find_exact_token('-')
 
-    numeric_ids = np.array(_numeric_base + [comma_id, rbrace_id], dtype=np.int64)
+    numeric_ids = np.array(_numeric_base + [comma_id, rbrace_id],
+                           dtype=np.int64)
 
     # "true" or "false" might not be a single token — the tokenizer can split
     # it into multiple pieces.
@@ -107,13 +109,13 @@ def main() -> None:
         parser = ConfigParser(**config_files)
     except ValidationError as e:
         print(e.errors()[0]["msg"].removeprefix("Value error, "))
+        exit()
     try:
         functions = parser.load_functions()
         prompts = parser.load_prompts()
-        print(f"FUNCTIONS - {functions}\n")
-        print(f"PROMPTS - {prompts}")
     except ParserError as e:
         print(e)
+        exit()
     model = Small_LLM_Model()
     jsons = []
     vocab = build_vocab_index(model)
@@ -122,7 +124,7 @@ def main() -> None:
             function = get_function_name(model, prompt.prompt, functions)
         except RuntimeError as e:
             print(e)
-            exit(1)
+            exit()
         result = "{"
         result += f'"prompt": "{prompt.prompt}", "name": "{function.name}", '
         result += '"parameters": '
