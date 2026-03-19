@@ -35,18 +35,18 @@ class ArgValidator(BaseModel):
             ValueError: If arguments are malformed or unsupported.
         """
         self.args = self.args[1:]
-        arguments = self.args[::2]
+        flags = self.args[::2]
         paths = self.args[1::2]
-        args_len = len(arguments)
+        args_len = len(flags)
         paths_len = len(paths)
         max_arg_count = len(self.config_files)
         if args_len != paths_len:
             raise ValueError("Missed argument or file path.")
         if args_len > max_arg_count:
             raise ValueError(f"Too many arguments. Max is {max_arg_count}")
-        if args_len != len(set(arguments)):
+        if args_len != len(set(flags)):
             raise ValueError("Duplicate arguments detected")
-        input_config_files: Dict[str, str] = dict(zip(arguments, paths))
+        input_config_files: Dict[str, str] = dict(zip(flags, paths))
         for arg, file_path in input_config_files.items():
             if not self.config_files.get(arg, None):
                 raise ValueError(f"Unknown argument: '{arg}'. Correct args"

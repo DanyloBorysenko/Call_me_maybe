@@ -17,6 +17,7 @@ class Return(BaseModel):
 
 
 class Function(BaseModel):
+    model_config = {"frozen": True}  # This makes the class hashable
     name: str = Field(min_length=1)
     description: str = Field(min_length=1)
     parameters: Dict[str, Parameter]
@@ -43,9 +44,9 @@ class ConfigParser(BaseModel):
     @model_validator(mode="before")
     def preprocess_args(cls, row_data: Dict[str, str]) -> Dict[str, str]:
         new_data = {}
-        for arg in row_data.keys():
-            new_arg = arg.removeprefix("--")
-            new_data[new_arg] = row_data[arg]
+        for key in row_data.keys():
+            new_key = key.removeprefix("--")
+            new_data[new_key] = row_data[key]
         return new_data
 
     def load_functions(self) -> List[Function]:

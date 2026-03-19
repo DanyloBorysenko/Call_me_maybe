@@ -1,95 +1,15 @@
-import sys
 from .arg_validator import ArgValidator
 from .parser import ConfigParser, ParserError
-from .extractor import get_function_name, get_parameters
+from .json_builder import create_output
+from .output_writer import write_output
 from pydantic import ValidationError
-from typing import Dict
 from llm_sdk import Small_LLM_Model
-import numpy as np
-import json
-
-
-def build_vocab_index(model) -> Dict:
-    vocab_path = model.get_path_to_vocab_file()
-    try:
-        with open(vocab_path, "r", encoding="utf-8") as f:
-            vocab_json = json.load(f)
-        vocab_size = len(vocab_json)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Warning: could not read vocab file: {e}, "
-              f"using fallback vocab size")
-        vocab_size = 151936
-
-    all_tokens: Dict[int, str] = {
-        i: model.decode([i]) for i in range(vocab_size)
-    }
-    # print(str(vocab_json)[:200])
-
-    def _find_exact_token(target: str) -> int:
-        matches = [i for i, s in all_tokens.items() if s == target]
-        if not matches:
-            raise ValueError(f"Token '{target}' not found in vocab")
-        return matches[0]
-
-    def _is_numeric_token(s: str) -> bool:
-        # The + sign was intentionally left out
-        # because in the context of JSON number values, '+' is not valid.
-        return len(s) > 0 and all(c in "0123456789.-" for c in s)
-
-    _numeric_base = [i for i, s in all_tokens.items() if _is_numeric_token(s)]
-    numeric_base_ids = np.array(_numeric_base, dtype=np.int64)
-
-    # The purpose of this section is to find the token IDs for
-    # JSON structural terminators — characters that signal
-    # "this value is finished, move to the next one"
-    quote_id = _find_exact_token('"')
-    comma_id = _find_exact_token(',')
-    rbrace_id = _find_exact_token('}')
-    negative_sign = _find_exact_token('-')
-
-    numeric_ids = np.array(_numeric_base + [comma_id, rbrace_id],
-                           dtype=np.int64)
-
-    bool_ids = np.array(
-        [
-            i for i, s in all_tokens.items()
-            if "true".startswith(s.lower()) or "false".startswith(s.lower())
-        ],
-        dtype=np.int64
-    )
-
-    # exclude structurally dangerous characters from strings
-    _unsafe_chars = {'{', '}', '\n', '\r', '\t'}
-    ids = []
-    for id, token in all_tokens.items():
-        if not token:
-            continue
-        if token == '"':
-            ids.append(id)
-        elif '"' in token:
-            continue
-        else:
-            if not any(c in _unsafe_chars for c in token):
-                ids.append(id)
-    str_ids = np.array(ids, dtype=np.int64)
-
-    return {
-        "all_tokens":       all_tokens,
-        "vocab_size":       vocab_size,
-        "quote_id":         quote_id,
-        "comma_id":         comma_id,
-        "rbrace_id":        rbrace_id,
-        "numeric_base_ids": numeric_base_ids,   # digits only
-        "numeric_ids":      numeric_ids,        # digits + terminators
-        "bool_ids":         bool_ids,
-        "str_ids":          str_ids,
-        "negative_sign":    negative_sign
-    }
+import sys
 
 
 def main() -> None:
     config_files = {
-                "--functions_definition": "data/input/functions_definition."""
+                "--functions_definition": "data/input/functions_definition."
                 "json",
                 "--input": "data/input/function_calling_tests.json",
                 "--output": "data/output/function_calls.json"
@@ -108,25 +28,12 @@ def main() -> None:
         print(e)
         exit()
     model = Small_LLM_Model()
-    jsons = []
-    vocab = build_vocab_index(model)
-    for prompt in prompts:
-        try:
-            function = get_function_name(model, prompt.prompt, functions)
-        except RuntimeError as e:
-            print(e)
-            exit()
-        parameters = get_parameters(model, function, prompt.prompt, vocab)
-        # res = ConfigParser.create_json(prompt, function, parameters)
-        # print(res)
-        result = {
-            "prompt": prompt.prompt,
-            "name": function.name,
-            "parameters": parameters
-            }
-        jsons.append(result)
-    output = json.dumps(jsons, indent=2)
-    print(output)
+    try:
+        output = create_output(functions, prompts, model)
+        write_output(output, config_files["--output"])
+    except Exception as e:
+        print(f"{e.__class__.__name__}: {e}")
+        exit()
 
 
 if __name__ == "__main__":

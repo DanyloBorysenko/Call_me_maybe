@@ -1,44 +1,119 @@
-from .parser import Function
+from .parser import Function, Prompt
 from typing import List, Dict, Any
 from llm_sdk import Small_LLM_Model
 import numpy as np
+import json
 
 
-def get_function_name(model: Small_LLM_Model,
-                      prompt: str,
-                      functions: List[Function]) -> Function:
-    function_names = [funct.name for funct in functions]
-    name_func_dict = {func.name: func for func in functions}
-    funct_name_tokens = {}
-    for name in function_names:
-        funct_name_tokens[name] = model.encode(name).tolist()[0]
-    prefix = "Available functions:\n"
-    for func in functions:
-        prefix += f"{func.name}: {func.description}\n"
+class JsonBuildingError(Exception):
+    pass
+
+
+def build_vocab_index(model) -> Dict:
+    vocab_path = model.get_path_to_vocab_file()
+    try:
+        with open(vocab_path, "r", encoding="utf-8") as f:
+            vocab_json = json.load(f)
+        vocab_size = len(vocab_json)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Warning: could not read vocab file: {e}, "
+              f"using fallback vocab size")
+        vocab_size = 151936
+
+    all_tokens: Dict[int, str] = {
+        i: model.decode([i]) for i in range(vocab_size)
+    }
+    # print(str(vocab_json)[:200])
+
+    def _find_exact_token(target: str) -> int:
+        matches = [i for i, s in all_tokens.items() if s == target]
+        if not matches:
+            raise ValueError(f"Token '{target}' not found in vocab")
+        return matches[0]
+
+    def _is_numeric_token(s: str) -> bool:
+        # The + sign was intentionally left out
+        # because in the context of JSON number values, '+' is not valid.
+        return len(s) > 0 and all(c in "0123456789.-" for c in s)
+
+    _numeric_base = [i for i, s in all_tokens.items() if _is_numeric_token(s)]
+    numeric_base_ids = np.array(_numeric_base, dtype=np.int64)
+
+    # The purpose of this section is to find the token IDs for
+    # JSON structural terminators — characters that signal
+    # "this value is finished, move to the next one"
+    quote_id = _find_exact_token('"')
+    comma_id = _find_exact_token(',')
+    rbrace_id = _find_exact_token('}')
+    negative_sign = _find_exact_token('-')
+
+    numeric_ids = np.array(_numeric_base + [comma_id, rbrace_id],
+                           dtype=np.int64)
+
+    bool_ids = np.array(
+        [
+            i for i, s in all_tokens.items()
+            if "true".startswith(s.lower()) or "false".startswith(s.lower())
+        ],
+        dtype=np.int64
+    )
+
+    # exclude structurally dangerous characters from strings
+    _unsafe_chars = {'{', '}', '\n', '\r', '\t'}
+    ids = []
+    for id, token in all_tokens.items():
+        if not token:
+            continue
+        if token == '"':
+            ids.append(id)
+        elif '"' in token:
+            continue
+        else:
+            if not any(c in _unsafe_chars for c in token):
+                ids.append(id)
+    str_ids = np.array(ids, dtype=np.int64)
+
+    return {
+        "all_tokens":       all_tokens,
+        "vocab_size":       vocab_size,
+        "quote_id":         quote_id,
+        "comma_id":         comma_id,
+        "rbrace_id":        rbrace_id,
+        "numeric_base_ids": numeric_base_ids,   # digits only
+        "numeric_ids":      numeric_ids,        # digits + terminators
+        "bool_ids":         bool_ids,
+        "str_ids":          str_ids,
+        "negative_sign":    negative_sign
+    }
+
+
+def find_function_name(model: Small_LLM_Model,
+                       prefix: str,
+                       prompt: str,
+                       func_name_tokens: Dict[str, List[int]],
+                       ) -> str:
     prefix += f'\nUser prompt: {prompt}\n'
     prefix += "{"
     prefix += f'"prompt": "{prompt}", "name": "'
     generated_tokens = []
     prefix_input_ids = model.encode(prefix).tolist()[0]
-    max_tokens_length = len(max(funct_name_tokens.values(),
+    max_tokens_length = len(max(func_name_tokens.values(),
                             key=lambda tokens: len(tokens)))
     for _ in range(max_tokens_length):
         allowed = set()
-        for name, tokens in funct_name_tokens.items():
+        for tokens in func_name_tokens.values():
             generated_len = len(generated_tokens)
             if tokens[:generated_len] == generated_tokens:
                 if len(tokens) > generated_len:
                     allowed.add(tokens[generated_len])
-        if not allowed:
-            raise RuntimeError("No valid tokens available")
         logits = model.get_logits_from_input_ids(prefix_input_ids)
         next_token = max(allowed, key=lambda i: logits[i])
         generated_tokens.append(next_token)
         prefix_input_ids.append(next_token)
-        for name, tokens in funct_name_tokens.items():
+        for name, tokens in func_name_tokens.items():
             if tokens == generated_tokens:
-                return name_func_dict[name]
-    raise RuntimeError("No function name found within token limit")
+                return name
+    raise RuntimeError()
 
 
 def _masked_argmax(logits: List[float], allowed_ids: np.ndarray) -> int:
@@ -176,3 +251,39 @@ def get_parameters(
             input_ids.extend(model.encode(sep).tolist()[0])
 
     return parameters
+
+
+def create_output(
+        functions: List[Function],
+        prompts: List[Prompt],
+        model: Small_LLM_Model
+        ) -> str:
+    vocab = build_vocab_index(model)
+    prefix = "Available functions:\n"
+    name_function_dict = {}
+    func_name_tokens = {}
+    for func in functions:
+        prefix += f"{func.name}: {func.description}\n"
+        func_name_tokens[func.name] = model.encode(func.name).tolist()[0]
+        name_function_dict[func.name] = func
+    jsons = []
+    for prompt in prompts:
+        try:
+            function_name = find_function_name(model,
+                                               prefix, prompt.prompt,
+                                               func_name_tokens)
+        except RuntimeError:
+            raise JsonBuildingError("No function name found")
+        function = name_function_dict[function_name]
+        parameters = get_parameters(model, function, prompt.prompt, vocab)
+        result = {
+            "prompt": prompt.prompt,
+            "name": function.name,
+            "parameters": parameters
+            }
+        jsons.append(result)
+    try:
+        return json.dumps(jsons, indent=2)
+    except Exception as e:
+        raise JsonBuildingError(f"json.dumps operation failed, "
+                                f"{e}")
