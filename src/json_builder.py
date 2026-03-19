@@ -1,5 +1,5 @@
 from .parser import Function, Prompt
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from llm_sdk import Small_LLM_Model
 import numpy as np
 import json
@@ -34,7 +34,15 @@ def build_vocab_index(model) -> Dict:
     def _is_numeric_token(s: str) -> bool:
         # The + sign was intentionally left out
         # because in the context of JSON number values, '+' is not valid.
-        return len(s) > 0 and all(c in "0123456789.-" for c in s)
+        if len(s) == 0:
+            return False
+        if not all(c in "0123456789.-" for c in s):
+            return False
+        not_numeric = ["..", "--", ".-", "-.", "- "]
+        for not_num in not_numeric:
+            if not_num in s:
+                return False
+        return True
 
     _numeric_base = [i for i, s in all_tokens.items() if _is_numeric_token(s)]
     numeric_base_ids = np.array(_numeric_base, dtype=np.int64)
@@ -46,17 +54,10 @@ def build_vocab_index(model) -> Dict:
     comma_id = _find_exact_token(',')
     rbrace_id = _find_exact_token('}')
     negative_sign = _find_exact_token('-')
+    space_minus = _find_exact_token(' -')
 
     numeric_ids = np.array(_numeric_base + [comma_id, rbrace_id],
                            dtype=np.int64)
-
-    bool_ids = np.array(
-        [
-            i for i, s in all_tokens.items()
-            if "true".startswith(s.lower()) or "false".startswith(s.lower())
-        ],
-        dtype=np.int64
-    )
 
     # exclude structurally dangerous characters from strings
     _unsafe_chars = {'{', '}', '\n', '\r', '\t'}
@@ -81,9 +82,9 @@ def build_vocab_index(model) -> Dict:
         "rbrace_id":        rbrace_id,
         "numeric_base_ids": numeric_base_ids,   # digits only
         "numeric_ids":      numeric_ids,        # digits + terminators
-        "bool_ids":         bool_ids,
         "str_ids":          str_ids,
-        "negative_sign":    negative_sign
+        "negative_sign":    negative_sign,
+        "space_minus":      space_minus
     }
 
 
@@ -152,6 +153,8 @@ def get_parameters(
     quote_id = vocab["quote_id"]
     numeric_ids = vocab["numeric_ids"]
     numeric_base_ids = vocab["numeric_base_ids"]
+    negative_sign_id = vocab["negative_sign"]
+    space_minus = vocab["space_minus"]
     str_ids = vocab["str_ids"]
 
     parameters: Dict[str, Any] = {}
@@ -168,7 +171,7 @@ def get_parameters(
     input_ids: List[int] = model.encode(prefix_str).tolist()[0]
     param_items = list(function.parameters.items())
 
-    prompt_token_ids = np.array(model.encode(prompt).tolist()[0])
+    # prompt_token_ids = np.array(model.encode(prompt).tolist()[0])
 
     for idx, (name, param) in enumerate(param_items):
 
@@ -191,7 +194,10 @@ def get_parameters(
                 if val_ids_len >= max_num_tokens:
                     break
                 if val_ids_len == 0:
-                    allowed_ids = numeric_base_ids
+                    allowed_ids = np.union1d(numeric_base_ids, np.array([space_minus], dtype=np.int64))
+                    if '-' in prompt and '-' != prompt[len(prompt) - 1] and prompt[prompt.find('-') + 1] in "0123456789":
+                        logits[space_minus] += 4.0
+                        logits[negative_sign_id] += 4.0
                 else:
                     allowed_ids = numeric_ids
 
@@ -287,3 +293,17 @@ def create_output(
     except Exception as e:
         raise JsonBuildingError(f"json.dumps operation failed, "
                                 f"{e}")
+
+
+def get_top_logits(logits: List[float],
+                   allowed_ids: np.ndarray,
+                   el_count: int,
+                   all_tokens: Dict[int, str]) -> None:
+    ind_logit_tuples = [(ind, value) for ind, value in enumerate(logits)
+                        if ind in allowed_ids]
+    sorted_logits = sorted(ind_logit_tuples, key=(lambda tup: tup[1]),
+                           reverse=True)
+    top = sorted_logits[:el_count]
+    print("Top biggest logits:")
+    for id, value in top:
+        print(f"'{all_tokens[id]}' : {value}")
