@@ -56,7 +56,7 @@ def build_vocab_index(model) -> Dict:
                            dtype=np.int64)
 
     # exclude structurally dangerous characters from strings
-    _unsafe_chars = {'{', '}', '\n', '\r', '\t'}
+    _unsafe_chars = {'{', '}', '[', ']', '\n', '\r', '\t'}
     ids = []
     for id, token in all_tokens.items():
         if not token:
@@ -123,15 +123,16 @@ def _masked_argmax(logits: List[float], allowed_ids: np.ndarray) -> int:
 
 def clean_and_cast(raw: str, param_type: str) -> Any:
     raw = raw.strip()
-    if param_type in ("int", "float", "number"):
+    if param_type in ("float", "number"):
         try:
-            return int(raw) if "." not in raw else float(raw)
+            return float(raw)
         except ValueError:
-            cleaned = ''.join(c for c in raw if c in "0123456789.-")
-            try:
-                return int(cleaned) if "." not in cleaned else float(cleaned)
-            except ValueError:
-                return None
+            print(f"float({raw}) operation failed")
+    elif param_type == "integer":
+        try:
+            return int(raw)
+        except ValueError:
+            print(f"int({raw}) operation failed")
     return raw
 
 
@@ -141,7 +142,7 @@ def get_parameters(
     prompt: str,
     vocab: dict,
     max_str_tokens: int = 80,
-    max_num_tokens: int = 20
+    max_num_tokens: int = 50
 ) -> Dict[str, Any]:
 
     all_tokens = vocab["all_tokens"]
@@ -185,7 +186,7 @@ def get_parameters(
             logits = model.get_logits_from_input_ids(input_ids)
 
             # ---------- numeric ----------
-            if ptype in ("int", "float", "number"):
+            if ptype in ("int", "float", "number", "integer"):
                 if val_ids_len >= max_num_tokens:
                     break
                 if val_ids_len == 0:
@@ -200,12 +201,6 @@ def get_parameters(
             else:
                 if val_ids_len >= max_str_tokens:
                     allowed_ids = np.array([quote_id], dtype=np.int64)
-                # elif name == "regex":
-                #     prompt_based = np.intersect1d(str_ids, prompt_token_ids)
-                #     allowed_ids = np.union1d(
-                #         prompt_based,
-                #         np.array([quote_id], dtype=np.int64)
-                #     )
                 else:
                     allowed_ids = str_ids
 
@@ -227,7 +222,7 @@ def get_parameters(
             # ---------- termination ----------
             is_done = (
                 (ptype == "string" and t_str == '"')
-                or (ptype in ("int", "float", "number")
+                or (ptype in ("int", "float", "number", "integer")
                     and t_str in (",", "}"))
             )
 
@@ -236,7 +231,6 @@ def get_parameters(
 
             val_ids.append(next_token)
             input_ids.append(next_token)
-
         raw_val = model.decode(val_ids).strip()
         if name == "regex" and ".*" in raw_val:
             raw_val = raw_val.split(".*")[0]
@@ -268,6 +262,7 @@ def create_output(
         func_name_tokens[func.name] = model.encode(func.name).tolist()[0]
         name_function_dict[func.name] = func
     jsons = []
+    # processed_results = []
     for prompt in prompts:
         function_name = find_function_name(model,
                                            prefix, prompt.prompt,
@@ -282,7 +277,19 @@ def create_output(
             "parameters": parameters
             }
         jsons.append(result)
+        # param_string = json.dumps(parameters, separators=(',', ': '))
+        # result = {
+        #     "prompt": prompt.prompt,
+        #     "name": function.name,
+        #     "parameters": "___PARAM_PLACEHOLDER___"
+        # }
+        # indented_result = json.dumps(result, indent=4)
+        # final_result_string = indented_result.replace('"___PARAM_PLACEHOLDER___"', param_string)
+        # indented_block = "\n".join("    " + line for line in final_result_string.splitlines())
+        # processed_results.append(indented_block)
     try:
+        # final_output = "[\n" + ",\n".join(processed_results) + "\n]"
+        # return final_output
         return json.dumps(jsons, indent=2)
     except Exception as e:
         raise RuntimeError(f"json_builder error: json.dumps operation failed, "

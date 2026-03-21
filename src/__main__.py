@@ -1,5 +1,5 @@
 from .arg_validator import ArgValidator
-from .parser import ConfigParser, ParserError
+from .parser import ConfigParser
 from .json_builder import create_output
 from .output_writer import write_output
 from pydantic import ValidationError
@@ -12,7 +12,7 @@ def main() -> None:
                 "--functions_definition": "data/input/functions_definition."
                 "json",
                 "--input": "data/input/function_calling_tests.json",
-                "--output": "data/output/function_calls.json"
+                "--output": "data/output/function_calling_results.json"
     }
     try:
         arg_validator = ArgValidator(args=sys.argv, config_files=config_files)
