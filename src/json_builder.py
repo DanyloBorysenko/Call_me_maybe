@@ -190,8 +190,14 @@ def get_parameters(
                 if val_ids_len >= max_num_tokens:
                     break
                 if val_ids_len == 0:
-                    allowed_ids = np.union1d(numeric_base_ids, np.array([space_minus], dtype=np.int64))
-                    if '-' in prompt and '-' != prompt[len(prompt) - 1] and prompt[prompt.find('-') + 1] in "0123456789":
+                    allowed_ids = np.union1d(numeric_base_ids,
+                                             np.array([space_minus],
+                                                      dtype=np.int64))
+                    if (
+                        '-' in prompt
+                        and '-' != prompt[len(prompt) - 1]
+                        and prompt[prompt.find('-') + 1].isdigit()
+                    ):
                         logits[space_minus] += 4.0
                         logits[negative_sign_id] += 4.0
                 else:
@@ -277,19 +283,7 @@ def create_output(
             "parameters": parameters
             }
         jsons.append(result)
-        # param_string = json.dumps(parameters, separators=(',', ': '))
-        # result = {
-        #     "prompt": prompt.prompt,
-        #     "name": function.name,
-        #     "parameters": "___PARAM_PLACEHOLDER___"
-        # }
-        # indented_result = json.dumps(result, indent=4)
-        # final_result_string = indented_result.replace('"___PARAM_PLACEHOLDER___"', param_string)
-        # indented_block = "\n".join("    " + line for line in final_result_string.splitlines())
-        # processed_results.append(indented_block)
     try:
-        # final_output = "[\n" + ",\n".join(processed_results) + "\n]"
-        # return final_output
         return json.dumps(jsons, indent=2)
     except Exception as e:
         raise RuntimeError(f"json_builder error: json.dumps operation failed, "

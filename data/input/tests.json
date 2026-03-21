@@ -4,5 +4,17 @@
   },
   {
 	"prompt": "This is just a prompt"
+  },
+  {
+    "prompt": "What is the sum of -2 and 3?"
+  },
+  {
+    "prompt": "What is the sum of 2 and 3.25?"
+  },
+  {
+    "prompt": "Replace all consonants in \"Hello 34 I'm 233 years old\" with NUMBERS"
+  },
+  {
+    "prompt": "Substitute the word cat with dog in 'The cat sat on the mat with another cat'"
   }
 ]

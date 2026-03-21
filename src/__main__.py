@@ -8,6 +8,28 @@ import sys
 
 
 def main() -> None:
+    """Runs the function-calling pipeline using an LLM model.
+
+    This function orchestrates the full workflow:
+    - Validates arguments and resolves configuration file paths.
+    - Parses function definitions and input prompts.
+    - Initializes the language model.
+    - Generates structured function call outputs.
+    - Writes results to the specified output file.
+
+    The configuration includes:
+        --functions_definition: Path to JSON file with function schemas.
+        --input: Path to JSON file with user prompts.
+        --output: Path where generated results will be saved.
+
+    Raises:
+        SystemExit: If argument validation or parsing fails.
+
+    Side Effects:
+        - Prints validation or runtime errors to stdout.
+        - Writes output JSON to disk.
+    """
+
     config_files = {
                 "--functions_definition": "data/input/functions_definition."
                 "json",
