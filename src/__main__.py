@@ -24,15 +24,11 @@ def main() -> None:
     try:
         functions = parser.load_functions()
         prompts = parser.load_prompts()
-    except ParserError as e:
-        print(e)
-        exit()
-    model = Small_LLM_Model()
-    try:
+        model = Small_LLM_Model()
         output = create_output(functions, prompts, model)
         write_output(output, config_files["--output"])
-    except Exception as e:
-        print(f"{e.__class__.__name__}: {e}")
+    except RuntimeError as e:
+        print(f"{e}")
         exit()
 
 

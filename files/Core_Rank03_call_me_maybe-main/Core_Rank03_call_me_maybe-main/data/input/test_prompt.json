@@ -1,0 +1,117 @@
+[
+  {"prompt": "What is the sum of 12 and 7?"},
+  {"prompt": "Add 25 and 38 together"},
+  {"prompt": "What is 100 plus 200?"},
+
+  {"prompt": "Subtract 4 from 19"},
+  {"prompt": "What is 50 minus 13?"},
+  {"prompt": "Deduct 7 from 100"},
+
+  {"prompt": "Multiply 6 by 8"},
+  {"prompt": "What is the product of 9 and 11?"},
+  {"prompt": "Calculate 15 times 4"},
+
+  {"prompt": "Divide 100 by 4"},
+  {"prompt": "What is 81 divided by 9?"},
+  {"prompt": "Split 200 into 5 equal parts"},
+
+  {"prompt": "What is the square root of 81?"},
+  {"prompt": "Calculate the square root of 144"},
+  {"prompt": "Find the square root of 225"},
+
+  {"prompt": "Raise 2 to the power of 10"},
+  {"prompt": "What is 3 to the power of 4?"},
+  {"prompt": "Calculate 5 raised to the exponent 3"},
+
+  {"prompt": "What is the absolute value of -42?"},
+  {"prompt": "Find the absolute value of -7"},
+  {"prompt": "Get the absolute value of -100"},
+
+  {"prompt": "What is the remainder when 17 is divided by 5?"},
+  {"prompt": "Find the modulo of 29 and 6"},
+  {"prompt": "What is 100 mod 7?"},
+
+  {"prompt": "Greet Alice"},
+  {"prompt": "Say hello to Bob"},
+  {"prompt": "Greet Mr. Anderson"},
+
+  {"prompt": "Reverse the string 'openai'"},
+  {"prompt": "Write 'hello world' backwards"},
+  {"prompt": "Flip the string 'Python'"},
+
+  {"prompt": "Convert 'hello world' to uppercase"},
+  {"prompt": "Make 'python is great' all caps"},
+  {"prompt": "Capitalize all letters in 'good morning'"},
+
+  {"prompt": "Convert 'PYTHON IS GREAT' to lowercase"},
+  {"prompt": "Make 'HELLO WORLD' all lowercase"},
+  {"prompt": "Lowercase the string 'GOOD MORNING'"},
+
+  {"prompt": "How many characters are in 'artificial intelligence'?"},
+  {"prompt": "Count the length of the string 'hello'"},
+  {"prompt": "What is the character count of 'programming'?"},
+
+  {"prompt": "Count the words in 'The quick brown fox jumps'"},
+  {"prompt": "How many words are in 'I love machine learning'?"},
+  {"prompt": "Count words in 'Python is a great language'"},
+
+  {"prompt": "Join 'Hello' and ' World' together"},
+  {"prompt": "Concatenate 'foo' and 'bar'"},
+  {"prompt": "Combine the strings 'Good' and ' Morning'"},
+
+  {"prompt": "Repeat the string 'ha' 3 times"},
+  {"prompt": "Repeat 'abc' 4 times"},
+  {"prompt": "Echo the word 'hello' 2 times"},
+
+  {"prompt": "Remove whitespace from '   hello   '"},
+  {"prompt": "Trim the spaces from '  python  '"},
+  {"prompt": "Strip leading and trailing spaces from '   good morning   '"},
+
+  {"prompt": "Replace all digits in 'abc123def456' with NUM"},
+  {"prompt": "Replace all numbers in 'Hello 34 I am 233 years old' with NUMBERS"},
+  {"prompt": "Substitute all numeric values in 'Room 101 has 2 windows' with X"},
+
+  {"prompt": "Replace all vowels in 'Hello World' with *"},
+  {"prompt": "Replace all vowels in 'Programming is fun' with asterisks"},
+  {"prompt": "Substitute all vowels in 'OpenAI is amazing' with #"},
+
+  {"prompt": "Substitute the word 'cat' with 'dog' in 'the cat sat on the mat with another cat'"},
+  {"prompt": "Replace 'apple' with 'orange' in 'I have an apple and another apple'"},
+  {"prompt": "Swap the word 'bad' with 'good' in 'this is a bad bad idea'"},
+
+  {"prompt": "Is 'racecar' a palindrome?"},
+  {"prompt": "Check if 'madam' reads the same forwards and backwards"},
+  {"prompt": "Is the word 'hello' a palindrome?"},
+
+  {"prompt": "Does 'Hello World' contain 'World'?"},
+  {"prompt": "Check if 'Python programming' contains 'gram'"},
+  {"prompt": "Is 'error' found inside 'this is an error message'?"},
+
+  {"prompt": "Does 'Python' start with 'Py'?"},
+  {"prompt": "Check if 'Hello World' begins with 'Hello'"},
+  {"prompt": "Does the string 'OpenAI' start with 'Open'?"},
+
+  {"prompt": "Does 'OpenAI' end with 'AI'?"},
+  {"prompt": "Check if 'Hello World' ends with 'World'"},
+  {"prompt": "Does the string 'Python' end with 'on'?"},
+
+  {"prompt": "Is 42 an even number?"},
+  {"prompt": "Check if 17 is even"},
+  {"prompt": "Is the number 100 even?"},
+
+  {"prompt": "Is -7 a positive number?"},
+  {"prompt": "Check if 42 is positive"},
+  {"prompt": "Is the number -100 positive?"},
+
+  {"prompt": "Is 17 a prime number?"},
+  {"prompt": "Check if 29 is prime"},
+  {"prompt": "Is 100 a prime number?"},
+
+  {"prompt": "Is 15 greater than 20?"},
+  {"prompt": "Check if 100 is larger than 50"},
+  {"prompt": "Is 7 bigger than 3?"},
+
+  {"prompt": "Are the strings 'hello' and 'hello' equal?"},
+  {"prompt": "Check if 'Python' and 'python' are the same"},
+  {"prompt": "Are 'OpenAI' and 'OpenAI' identical strings?"}
+]

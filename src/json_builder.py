@@ -1,12 +1,8 @@
 from .parser import Function, Prompt
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 from llm_sdk import Small_LLM_Model
 import numpy as np
 import json
-
-
-class JsonBuildingError(Exception):
-    pass
 
 
 def build_vocab_index(model) -> Dict:
@@ -114,7 +110,6 @@ def find_function_name(model: Small_LLM_Model,
         for name, tokens in func_name_tokens.items():
             if tokens == generated_tokens:
                 return name
-    raise RuntimeError()
 
 
 def _masked_argmax(logits: List[float], allowed_ids: np.ndarray) -> int:
@@ -274,12 +269,11 @@ def create_output(
         name_function_dict[func.name] = func
     jsons = []
     for prompt in prompts:
-        try:
-            function_name = find_function_name(model,
-                                               prefix, prompt.prompt,
-                                               func_name_tokens)
-        except RuntimeError:
-            raise JsonBuildingError("No function name found")
+        function_name = find_function_name(model,
+                                           prefix, prompt.prompt,
+                                           func_name_tokens)
+        if not function_name:
+            raise RuntimeError("json_builder error: No function name found")
         function = name_function_dict[function_name]
         parameters = get_parameters(model, function, prompt.prompt, vocab)
         result = {
@@ -291,8 +285,8 @@ def create_output(
     try:
         return json.dumps(jsons, indent=2)
     except Exception as e:
-        raise JsonBuildingError(f"json.dumps operation failed, "
-                                f"{e}")
+        raise RuntimeError(f"json_builder error: json.dumps operation failed, "
+                           f"{e}")
 
 
 def get_top_logits(logits: List[float],
