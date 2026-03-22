@@ -56,3 +56,11 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    # import re
+    # prompt = "Hello 34 I'm 233 years old"
+    # prompt2 = "ProgrAmming is fun"
+    # regex = "(\\d+)"
+    # regex2 = "([aeiouAEIOU])"
+    # match_result = re.findall(regex, prompt)
+    # if match_result:
+    #     print(f"Result is - {match_result}")

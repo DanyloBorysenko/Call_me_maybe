@@ -6,6 +6,19 @@ import json
 
 
 def build_vocab_index(model) -> Dict:
+    """Builds vocabulary index and token groups for constrained decoding.
+    Extracts all tokens from the model and categorizes them into:
+    - numeric tokens (with and without terminators)
+    - string-safe tokens
+    - regex-safe tokens
+    - special structural tokens (quotes, commas, braces, etc.)
+    Args:
+        model: LLM model instance.
+    Returns:
+        Dictionary containing token mappings and categorized token ID arrays.
+    Raises:
+        ValueError: If required tokens (e.g., '"', ',', '}') are not found.
+    """
     vocab_path = model.get_path_to_vocab_file()
     try:
         with open(vocab_path, "r", encoding="utf-8") as f:
@@ -51,12 +64,16 @@ def build_vocab_index(model) -> Dict:
     rbrace_id = _find_exact_token('}')
     negative_sign = _find_exact_token('-')
     space_minus = _find_exact_token(' -')
+    close_parenth = _find_exact_token(')')
+    close_sq_bracket = _find_exact_token(']')
+    slash = _find_exact_token('/')
+    space_slash = _find_exact_token(' /')
 
     numeric_ids = np.array(_numeric_base + [comma_id, rbrace_id],
                            dtype=np.int64)
 
     # exclude structurally dangerous characters from strings
-    _unsafe_chars = {'{', '}', '[', ']', '\n', '\r', '\t'}
+    _unsafe_chars = {'{', '}', '\n', '\r', '\t'}
     ids = []
     for id, token in all_tokens.items():
         if not token:
@@ -69,6 +86,17 @@ def build_vocab_index(model) -> Dict:
             if not any(c in _unsafe_chars for c in token):
                 ids.append(id)
     str_ids = np.array(ids, dtype=np.int64)
+    reg_ids = []
+    for id, token in all_tokens.items():
+        if not token:
+            continue
+        if token == ")" or token == "]":
+            reg_ids.append(id)
+        elif ")" in token or "]" in token:
+            continue
+        else:
+            reg_ids.append(id)
+    regex_ids = np.array(reg_ids, dtype=np.int64)
 
     return {
         "all_tokens":       all_tokens,
@@ -80,7 +108,12 @@ def build_vocab_index(model) -> Dict:
         "numeric_ids":      numeric_ids,        # digits + terminators
         "str_ids":          str_ids,
         "negative_sign":    negative_sign,
-        "space_minus":      space_minus
+        "space_minus":      space_minus,
+        "close_parenth":    close_parenth,
+        "close_sq_bracket": close_sq_bracket,
+        "regex_ids":        regex_ids,
+        "slash":            slash,
+        "space_slash":      space_slash
     }
 
 
@@ -89,6 +122,20 @@ def find_function_name(model: Small_LLM_Model,
                        prompt: str,
                        func_name_tokens: Dict[str, List[int]],
                        ) -> str:
+    """Selects the most likely function name using constrained decoding.
+
+    Iteratively generates tokens while restricting choices to valid
+    function name prefixes.
+
+    Args:
+        model: LLM model instance.
+        prefix: Prompt prefix containing available functions.
+        prompt: User input prompt.
+        func_name_tokens: Mapping of function names to token sequences.
+
+    Returns:
+        The selected function name.
+    """
     prefix += f'\nUser prompt: {prompt}\n'
     prefix += "{"
     prefix += f'"prompt": "{prompt}", "name": "'
@@ -113,15 +160,36 @@ def find_function_name(model: Small_LLM_Model,
 
 
 def _masked_argmax(logits: List[float], allowed_ids: np.ndarray) -> int:
-    """Mask all tokens except allowed_ids and
-    return the highest-logit token id."""
+    """Returns the index of the highest logit among allowed tokens.
+
+    Args:
+        logits: Model output logits.
+        allowed_ids: Token IDs allowed for selection.
+
+    Returns:
+        Token ID with the highest allowed logit.
+    """
     arr = np.array(logits, dtype=np.float32)
     mask = np.full(len(arr), -np.inf, dtype=np.float32)
     mask[allowed_ids] = arr[allowed_ids]
     return int(np.argmax(mask))
 
 
-def clean_and_cast(raw: str, param_type: str) -> Any:
+def clean_and_cast(raw: str, param_type: str, param_name: str) -> Any:
+    """Cleans and converts raw generated values to target types.
+
+    Handles:
+    - numeric casting (int/float)
+    - regex post-processing (closing brackets, trimming patterns)
+
+    Args:
+        raw: Raw decoded string value.
+        param_type: Expected parameter type.
+        param_name: Parameter name (used for special handling).
+
+    Returns:
+        Converted or cleaned value.
+    """
     raw = raw.strip()
     if param_type in ("float", "number"):
         try:
@@ -133,6 +201,13 @@ def clean_and_cast(raw: str, param_type: str) -> Any:
             return int(raw)
         except ValueError:
             print(f"int({raw}) operation failed")
+    elif param_name == "regex":
+        if ".*" in raw:
+            raw = raw.split(".*")[0]
+        open_parens = raw.count("(") - raw.count(")")
+        open_brackets = raw.count("[") - raw.count("]")
+        raw += "]" * open_brackets
+        raw += ")" * open_parens
     return raw
 
 
@@ -144,6 +219,29 @@ def get_parameters(
     max_str_tokens: int = 80,
     max_num_tokens: int = 50
 ) -> Dict[str, Any]:
+    """Generates function parameters using constrained token decoding.
+
+    Applies different token constraints based on parameter type:
+    - numeric: digits + optional sign + terminators
+    - string: safe tokens with quote termination
+    - regex: restricted tokens + structural fixes
+
+    Includes safeguards:
+    - max token limits
+    - repetition detection
+    - termination conditions
+
+    Args:
+        model: LLM model instance.
+        function: Selected function definition.
+        prompt: User input prompt.
+        vocab: Precomputed vocabulary index.
+        max_str_tokens: Maximum tokens for string values.
+        max_num_tokens: Maximum tokens for numeric values.
+
+    Returns:
+        Dictionary of generated parameters.
+    """
 
     all_tokens = vocab["all_tokens"]
     quote_id = vocab["quote_id"]
@@ -152,12 +250,17 @@ def get_parameters(
     negative_sign_id = vocab["negative_sign"]
     space_minus = vocab["space_minus"]
     str_ids = vocab["str_ids"]
+    regex_ids = vocab["regex_ids"]
+    close_parenth = vocab["close_parenth"]
+    close_sq_bracket = vocab["close_sq_bracket"]
+    slash = vocab["slash"]
+    space_slash = vocab["space_slash"]
 
     parameters: Dict[str, Any] = {}
     # if you want a literal '{' or '}' character in the output,
     # you must double it
     prefix_str = (
-        f'Available functions:\n{function.name}: {function.description}\n'
+        f'Available function:\n{function.name}: {function.description}\n'
         f'\nUser prompt: {prompt}\n'
         f'{{ "prompt": "{prompt}", '
         f'"name": "{function.name}", '
@@ -166,8 +269,6 @@ def get_parameters(
 
     input_ids: List[int] = model.encode(prefix_str).tolist()[0]
     param_items = list(function.parameters.items())
-
-    # prompt_token_ids = np.array(model.encode(prompt).tolist()[0])
 
     for idx, (name, param) in enumerate(param_items):
 
@@ -207,9 +308,27 @@ def get_parameters(
             else:
                 if val_ids_len >= max_str_tokens:
                     allowed_ids = np.array([quote_id], dtype=np.int64)
+                elif name == "regex":
+                    if (
+                        val_ids
+                        and (all_tokens[val_ids[-1]])[-1] in ("+", "?", "*")
+                    ):
+                        allowed_ids = np.array([close_parenth,
+                                                close_sq_bracket],
+                                               dtype=np.int64)
+                    else:
+                        allowed_ids = np.intersect1d(regex_ids, str_ids)
+                # elif name == "replacement" and val_ids_len != 0:
+                #     logits[quote_id] += 1
                 else:
                     allowed_ids = str_ids
-
+                    if name == "replacement" and val_ids_len != 0:
+                        logits[quote_id] += 1
+                    elif (val_ids_len == 0 and " /" in prompt):
+                        logits[slash] += 1
+                        logits[space_slash] += 1
+            # if name == "regex":
+            #     get_top_logits(logits, allowed_ids, 10, all_tokens)
             next_token = _masked_argmax(logits, allowed_ids)
             t_str = all_tokens[next_token]
 
@@ -230,6 +349,8 @@ def get_parameters(
                 (ptype == "string" and t_str == '"')
                 or (ptype in ("int", "float", "number", "integer")
                     and t_str in (",", "}"))
+                or (name == "regex" and val_ids and val_ids[-1] in (
+                    close_parenth, close_sq_bracket))
             )
 
             if is_done:
@@ -237,10 +358,8 @@ def get_parameters(
 
             val_ids.append(next_token)
             input_ids.append(next_token)
-        raw_val = model.decode(val_ids).strip()
-        if name == "regex" and ".*" in raw_val:
-            raw_val = raw_val.split(".*")[0]
-        parameters[name] = clean_and_cast(raw_val, ptype)
+        raw_val = model.decode(val_ids)
+        parameters[name] = clean_and_cast(raw_val, ptype, name)
 
         # ---------- append separators ----------
         if ptype == "string":
@@ -259,6 +378,24 @@ def create_output(
         prompts: List[Prompt],
         model: Small_LLM_Model
         ) -> str:
+    """Generates JSON output for all prompts.
+
+    For each prompt:
+    - selects a function
+    - generates parameters
+    - builds structured JSON result
+
+    Args:
+        functions: List of available functions.
+        prompts: List of input prompts.
+        model: LLM model instance.
+
+    Returns:
+        JSON string with formatted results.
+
+    Raises:
+        RuntimeError: If function selection or JSON serialization fails.
+    """
     vocab = build_vocab_index(model)
     prefix = "Available functions:\n"
     name_function_dict = {}
@@ -294,6 +431,14 @@ def get_top_logits(logits: List[float],
                    allowed_ids: np.ndarray,
                    el_count: int,
                    all_tokens: Dict[int, str]) -> None:
+    """Prints top-N logits for debugging token selection.
+
+    Args:
+        logits: Model logits.
+        allowed_ids: Allowed token IDs.
+        el_count: Number of top elements to display.
+        all_tokens: Mapping of token IDs to strings.
+    """
     ind_logit_tuples = [(ind, value) for ind, value in enumerate(logits)
                         if ind in allowed_ids]
     sorted_logits = sorted(ind_logit_tuples, key=(lambda tup: tup[1]),

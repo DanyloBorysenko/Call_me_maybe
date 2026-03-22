@@ -1,6 +1,6 @@
 [
   {
-    "prompt": "What is the sum of -23278742379475789578237592782782374 and 3?"
+    "prompt": "What is the sum of 23278742379475789578 and 3?"
   },
   {
 	"prompt": "This is just a prompt"
@@ -12,9 +12,9 @@
     "prompt": "What is the sum of 2 and 3.25?"
   },
   {
-    "prompt": "Replace all consonants in \"Hello 34 I'm 233 years old\" with NUMBERS"
+    "prompt": "Substitute the word cat with dog in 'The cat sat on the mat with another cat'"
   },
   {
-    "prompt": "Substitute the word cat with dog in 'The cat sat on the mat with another cat'"
+    "prompt": "Replace all vowels in 'Programming is fun' with ___"
   }
 ]
