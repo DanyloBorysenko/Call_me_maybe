@@ -48,7 +48,6 @@ class Function(BaseModel):
     Raises:
         ValueError: If any parameter name is empty.
     """
-    model_config = {"frozen": True}  # This makes the class hashable
     name: str = Field(min_length=1)
     description: str = Field(min_length=1)
     parameters: Dict[str, Parameter]

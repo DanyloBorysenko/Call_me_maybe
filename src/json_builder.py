@@ -159,7 +159,7 @@ def find_function_name(model: Small_LLM_Model,
                 return name
 
 
-def _masked_argmax(logits: List[float], allowed_ids: np.ndarray) -> int:
+def masked_argmax(logits: List[float], allowed_ids: np.ndarray) -> int:
     """Returns the index of the highest logit among allowed tokens.
 
     Args:
@@ -329,7 +329,7 @@ def get_parameters(
                         logits[space_slash] += 1
             # if name == "regex":
             #     get_top_logits(logits, allowed_ids, 10, all_tokens)
-            next_token = _masked_argmax(logits, allowed_ids)
+            next_token = masked_argmax(logits, allowed_ids)
             t_str = all_tokens[next_token]
 
             # Repetition guard — stop if any token pattern repeats back-to-back
