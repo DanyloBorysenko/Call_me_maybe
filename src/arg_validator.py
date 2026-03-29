@@ -37,22 +37,24 @@ class ArgValidator(BaseModel):
         self.args = self.args[1:]
         flags = self.args[::2]
         paths = self.args[1::2]
-        args_len = len(flags)
+        flags_len = len(flags)
         paths_len = len(paths)
         max_arg_count = len(self.config_files)
-        if args_len != paths_len:
+        if flags_len != paths_len:
             raise ValueError("Missed argument or file path.")
-        if args_len > max_arg_count:
+        if flags_len > max_arg_count:
             raise ValueError(f"Too many arguments. Max is {max_arg_count}")
-        if args_len != len(set(flags)):
-            raise ValueError("Duplicate arguments detected")
+        if flags_len != len(set(flags)):
+            raise ValueError("Duplicate flags detected")
+        if paths_len != len(set(paths)):
+            raise ValueError("Duplicate paths detected")
         input_config_files: Dict[str, str] = dict(zip(flags, paths))
-        for arg, file_path in input_config_files.items():
-            if not self.config_files.get(arg, None):
-                raise ValueError(f"Unknown argument: '{arg}'. Correct args"
+        for flag, file_path in input_config_files.items():
+            if not self.config_files.get(flag, None):
+                raise ValueError(f"Unknown argument: '{flag}'. Correct args"
                                  f": {', '.join(self.config_files.keys())}")
             if not file_path.endswith(".json"):
                 raise ValueError(f"File path {file_path} doesn't end with "
                                  "'.json' suffix")
-            self.config_files[arg] = file_path
+            self.config_files[flag] = file_path
         return self

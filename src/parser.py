@@ -130,7 +130,7 @@ class ConfigParser(BaseModel):
                                "must be a list")
         for item in data:
             if not isinstance(item, dict):
-                raise RuntimeError("Each function definition "
+                raise RuntimeError("ParserError: Each function definition "
                                    "must be an object")
         try:
             functions = [Function(**item) for item in data]
@@ -141,7 +141,8 @@ class ConfigParser(BaseModel):
         except ValidationError as e:
             raise_parser_error(e)
         except Exception as e:
-            raise RuntimeError(f"{e}")
+            raise RuntimeError(f"ParserError: {e.__class__.__name__} - {e}")
+        return []
 
     def load_prompts(self) -> List[Prompt]:
         """Loads and validates prompts from a JSON file.

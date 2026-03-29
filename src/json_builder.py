@@ -5,7 +5,7 @@ import numpy as np
 import json
 
 
-def build_vocab_index(model) -> Dict:
+def build_vocab_index(model: Small_LLM_Model) -> Dict:
     """Builds vocabulary index and token groups for constrained decoding.
     Extracts all tokens from the model and categorizes them into:
     - numeric tokens (with and without terminators)
@@ -16,28 +16,28 @@ def build_vocab_index(model) -> Dict:
         model: LLM model instance.
     Returns:
         Dictionary containing token mappings and categorized token ID arrays.
-    Raises:
-        ValueError: If required tokens (e.g., '"', ',', '}') are not found.
     """
     vocab_path = model.get_path_to_vocab_file()
     try:
         with open(vocab_path, "r", encoding="utf-8") as f:
-            vocab_json = json.load(f)
+            vocab_json: Dict[str, int] = json.load(f)
         vocab_size = len(vocab_json)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"Warning: could not read vocab file: {e}, "
               f"using fallback vocab size")
-        vocab_size = 151936
+        exit()
 
     all_tokens: Dict[int, str] = {
         i: model.decode([i]) for i in range(vocab_size)
     }
     # print(str(vocab_json)[:200])
+    # print("\n", str(all_tokens)[:200])
 
     def _find_exact_token(target: str) -> int:
         matches = [i for i, s in all_tokens.items() if s == target]
         if not matches:
-            raise ValueError(f"Token '{target}' not found in vocab")
+            print(f"Token '{target}' not found in vocab")
+            exit()
         return matches[0]
 
     def _is_numeric_token(s: str) -> bool:
@@ -83,7 +83,7 @@ def build_vocab_index(model) -> Dict:
         elif '"' in token:
             continue
         else:
-            if not any(c in _unsafe_chars for c in token):
+            if _unsafe_chars.isdisjoint(token):
                 ids.append(id)
     str_ids = np.array(ids, dtype=np.int64)
     reg_ids = []
@@ -100,7 +100,6 @@ def build_vocab_index(model) -> Dict:
 
     return {
         "all_tokens":       all_tokens,
-        "vocab_size":       vocab_size,
         "quote_id":         quote_id,
         "comma_id":         comma_id,
         "rbrace_id":        rbrace_id,
@@ -139,7 +138,7 @@ def find_function_name(model: Small_LLM_Model,
     prefix += f'\nUser prompt: {prompt}\n'
     prefix += "{"
     prefix += f'"prompt": "{prompt}", "name": "'
-    generated_tokens = []
+    generated_tokens: List[int] = []
     prefix_input_ids = model.encode(prefix).tolist()[0]
     max_tokens_length = len(max(func_name_tokens.values(),
                             key=lambda tokens: len(tokens)))
@@ -154,12 +153,16 @@ def find_function_name(model: Small_LLM_Model,
         next_token = max(allowed, key=lambda i: logits[i])
         generated_tokens.append(next_token)
         prefix_input_ids.append(next_token)
+        # print(", ".join([
+        #     f"{model.decode([id])}" for id in prefix_input_ids]))
+        # exit()
         for name, tokens in func_name_tokens.items():
             if tokens == generated_tokens:
                 return name
+    return ""
 
 
-def masked_argmax(logits: List[float], allowed_ids: np.ndarray) -> int:
+def _masked_argmax(logits: List[float], allowed_ids: np.ndarray) -> int:
     """Returns the index of the highest logit among allowed tokens.
 
     Args:
@@ -212,7 +215,7 @@ def clean_and_cast(raw: str, param_type: str, param_name: str) -> Any:
 
 
 def get_parameters(
-    model,
+    model: Small_LLM_Model,
     function: Function,
     prompt: str,
     vocab: dict,
@@ -318,31 +321,17 @@ def get_parameters(
                                                dtype=np.int64)
                     else:
                         allowed_ids = np.intersect1d(regex_ids, str_ids)
-                # elif name == "replacement" and val_ids_len != 0:
-                #     logits[quote_id] += 1
                 else:
                     allowed_ids = str_ids
                     if name == "replacement" and val_ids_len != 0:
                         logits[quote_id] += 1
-                    elif (val_ids_len == 0 and " /" in prompt):
+                    elif (val_ids_len == 0 and "/" in prompt):
                         logits[slash] += 1
                         logits[space_slash] += 1
             # if name == "regex":
             #     get_top_logits(logits, allowed_ids, 10, all_tokens)
-            next_token = masked_argmax(logits, allowed_ids)
+            next_token = _masked_argmax(logits, allowed_ids)
             t_str = all_tokens[next_token]
-
-            # Repetition guard — stop if any token pattern repeats back-to-back
-            stop = False
-            if ptype == "string" and val_ids_len >= 6:
-                for window in (2, 3, 4, 5, 6):
-                    if val_ids_len >= window * 2:
-                        if val_ids[-window:] == val_ids[-window*2:-window]:
-                            val_ids = val_ids[:-window]
-                            stop = True
-                            break
-                if stop is True:
-                    break
 
             # ---------- termination ----------
             is_done = (
@@ -405,7 +394,6 @@ def create_output(
         func_name_tokens[func.name] = model.encode(func.name).tolist()[0]
         name_function_dict[func.name] = func
     jsons = []
-    # processed_results = []
     for prompt in prompts:
         function_name = find_function_name(model,
                                            prefix, prompt.prompt,
@@ -421,7 +409,7 @@ def create_output(
             }
         jsons.append(result)
     try:
-        return json.dumps(jsons, indent=2)
+        return json.dumps(jsons, indent=4)
     except Exception as e:
         raise RuntimeError(f"json_builder error: json.dumps operation failed, "
                            f"{e}")
