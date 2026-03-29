@@ -328,8 +328,9 @@ def get_parameters(
                     elif (val_ids_len == 0 and "/" in prompt):
                         logits[slash] += 1
                         logits[space_slash] += 1
-            # if name == "regex":
-            #     get_top_logits(logits, allowed_ids, 10, all_tokens)
+
+            # get_top_logits(logits, allowed_ids, 5,
+            #                all_tokens, model.decode(input_ids))
             next_token = _masked_argmax(logits, allowed_ids)
             t_str = all_tokens[next_token]
 
@@ -418,7 +419,8 @@ def create_output(
 def get_top_logits(logits: List[float],
                    allowed_ids: np.ndarray,
                    el_count: int,
-                   all_tokens: Dict[int, str]) -> None:
+                   all_tokens: Dict[int, str],
+                   prefix: str) -> None:
     """Prints top-N logits for debugging token selection.
 
     Args:
@@ -426,12 +428,14 @@ def get_top_logits(logits: List[float],
         allowed_ids: Allowed token IDs.
         el_count: Number of top elements to display.
         all_tokens: Mapping of token IDs to strings.
+        prefix: string that is modified by llm.
     """
     ind_logit_tuples = [(ind, value) for ind, value in enumerate(logits)
                         if ind in allowed_ids]
     sorted_logits = sorted(ind_logit_tuples, key=(lambda tup: tup[1]),
                            reverse=True)
     top = sorted_logits[:el_count]
+    print(f"Prefix - '{prefix}'")
     print("Top biggest logits:")
     for id, value in top:
         print(f"'{all_tokens[id]}' : {value}")
