@@ -2,6 +2,7 @@ from .arg_validator import ArgValidator
 from .parser import ConfigParser
 from .json_builder import create_output
 from .output_writer import write_output
+from .vocab import VocabIndex
 from pydantic import ValidationError
 from llm_sdk import Small_LLM_Model
 import sys
@@ -47,7 +48,8 @@ def main() -> None:
         functions = parser.load_functions()
         prompts = parser.load_prompts()
         model = Small_LLM_Model()
-        output = create_output(functions, prompts, model)
+        vocab = VocabIndex(model)
+        output = create_output(functions, prompts, model, vocab)
         write_output(output, config_files["--output"])
     except RuntimeError as e:
         print(f"{e}")
@@ -56,11 +58,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    # import re
-    # prompt = "Hello 34 I'm 233 years old"
-    # prompt2 = "ProgrAmming is fun"
-    # regex = "(\\d+)"
-    # regex2 = "([aeiouAEIOU])"
-    # match_result = re.findall(regex, prompt)
-    # if match_result:
-    #     print(f"Result is - {match_result}")
